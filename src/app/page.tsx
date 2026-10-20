@@ -36,7 +36,7 @@ import {
 
 export default function HomePage() {
   const { filters, setFilters, apply, queryString } = useFilters();
-  const { cachedFetch, getCached, invalidateClientCache } = useDataCache();
+  const { cachedFetch, getCached, refreshFromDb, warm } = useDataCache();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
       try {
-        if (force) invalidateClientCache();
+        if (force) await refreshFromDb();
         const json = await cachedFetch<DashboardData>(
           key,
           `/api/dashboard?${queryString}`,
@@ -68,12 +68,13 @@ export default function HomePage() {
         setLoading(false);
       }
     },
-    [cachedFetch, getCached, invalidateClientCache, queryString]
+    [cachedFetch, getCached, refreshFromDb, queryString]
   );
 
   useEffect(() => {
+    if (!warm) return;
     load();
-  }, [load]);
+  }, [load, warm]);
 
   const evolucaoIndicacoes =
     data?.evolucaoIndicacoes.map((e) => ({

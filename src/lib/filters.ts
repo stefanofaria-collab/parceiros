@@ -30,6 +30,12 @@ export function parseFilters(
     ultimaIndicacaoAte: get("ultimaIndicacaoAte"),
     ultimaAtivacaoDe: get("ultimaAtivacaoDe"),
     ultimaAtivacaoAte: get("ultimaAtivacaoAte"),
+    minIndicacoes: get("minIndicacoes"),
+    maxIndicacoes: get("maxIndicacoes"),
+    minAtivacoes: get("minAtivacoes"),
+    maxAtivacoes: get("maxAtivacoes"),
+    mapaModo:
+      get("mapaModo") === "parceiros" ? "parceiros" : get("mapaModo") === "clientes" ? "clientes" : undefined,
     responsavelPagamento:
       responsavel === "Cliente" ||
       responsavel === "Parceiro" ||

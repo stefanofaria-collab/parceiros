@@ -8,12 +8,14 @@ import {
   CalendarDays,
   TrendingUp,
   Handshake,
+  Map,
 } from "lucide-react";
 import clsx from "clsx";
 
 const links = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
   { href: "/parceiros", label: "Parceiros", icon: Users },
+  { href: "/mapa", label: "Mapa de Parceiros", icon: Map },
   { href: "/vencimentos", label: "Vencimentos futuros", icon: CalendarDays },
   { href: "/leads", label: "Leads ativos", icon: TrendingUp },
 ];

@@ -23,7 +23,7 @@ import { UserPlus, Activity } from "lucide-react";
 
 export default function LeadsPage() {
   const { filters, setFilters, apply, queryString } = useFilters();
-  const { cachedFetch, getCached, invalidateClientCache } = useDataCache();
+  const { cachedFetch, getCached, refreshFromDb, warm } = useDataCache();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,7 +40,7 @@ export default function LeadsPage() {
       }
       setLoading(true);
       try {
-        if (force) invalidateClientCache();
+        if (force) await refreshFromDb();
         const json = await cachedFetch<DashboardData>(
           key,
           `/api/dashboard?${queryString}`,
@@ -51,12 +51,13 @@ export default function LeadsPage() {
         setLoading(false);
       }
     },
-    [cachedFetch, getCached, invalidateClientCache, queryString]
+    [cachedFetch, getCached, refreshFromDb, queryString]
   );
 
   useEffect(() => {
+    if (!warm) return;
     load();
-  }, [load]);
+  }, [load, warm]);
 
   const evolucao =
     data?.evolucaoLeads.map((e) => ({

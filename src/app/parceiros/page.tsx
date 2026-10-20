@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { Filters } from "@/components/Filters";
 import { PartnerClientsModal } from "@/components/PartnerClientsModal";
+import { ExportPartnersModal } from "@/components/ExportPartnersModal";
 import { useFilters } from "@/hooks/useFilters";
 import { useDataCache } from "@/context/DataCacheContext";
 import { PartnerSummary } from "@/lib/types";
@@ -18,11 +19,12 @@ import {
 export default function ParceirosPage() {
   const { filters, setFilters, applied, apply, setPage, queryString } =
     useFilters();
-  const { cachedFetch, getCached, invalidateClientCache } = useDataCache();
+  const { cachedFetch, getCached, refreshFromDb, warm } = useDataCache();
   const [items, setItems] = useState<PartnerSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const [selected, setSelected] = useState<{
     id: number;
     nome: string;
@@ -47,7 +49,7 @@ export default function ParceirosPage() {
       setLoading(true);
       setError(null);
       try {
-        if (force) invalidateClientCache();
+        if (force) await refreshFromDb();
         const json = await cachedFetch<{
           items: PartnerSummary[];
           total: number;
@@ -60,12 +62,13 @@ export default function ParceirosPage() {
         setLoading(false);
       }
     },
-    [cachedFetch, getCached, invalidateClientCache, queryString]
+    [cachedFetch, getCached, refreshFromDb, queryString]
   );
 
   useEffect(() => {
+    if (!warm) return;
     load();
-  }, [load]);
+  }, [load, warm]);
 
   return (
     <>
@@ -85,14 +88,24 @@ export default function ParceirosPage() {
         )}
 
         <div className="card overflow-hidden">
-          <div className="border-b border-[#eef2f6] px-5 py-4">
-            <h3 className="text-base font-semibold text-[#122033]">
-              Parceiros no recorte
-            </h3>
-            <p className="text-sm text-[#6b7280]">
-              {formatNumber(total)} parceiros encontrados · página {page} de{" "}
-              {totalPages}
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef2f6] px-5 py-4">
+            <div>
+              <h3 className="text-base font-semibold text-[#122033]">
+                Parceiros no recorte
+              </h3>
+              <p className="text-sm text-[#6b7280]">
+                {formatNumber(total)} parceiros encontrados · página {page} de{" "}
+                {totalPages}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setExportOpen(true)}
+            >
+              <Download className="h-4 w-4" />
+              Exportar
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -219,6 +232,12 @@ export default function ParceirosPage() {
         partnerName={selected?.nome}
         queryString={queryString}
         onClose={() => setSelected(null)}
+      />
+
+      <ExportPartnersModal
+        open={exportOpen}
+        queryString={queryString}
+        onClose={() => setExportOpen(false)}
       />
     </>
   );

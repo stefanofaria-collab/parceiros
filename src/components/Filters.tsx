@@ -26,6 +26,10 @@ const empty: FilterParams = {
   ultimaIndicacaoAte: "",
   ultimaAtivacaoDe: "",
   ultimaAtivacaoAte: "",
+  minIndicacoes: "",
+  maxIndicacoes: "",
+  minAtivacoes: "",
+  maxAtivacoes: "",
   responsavelPagamento: "Todos",
   leadsAtivos: "Todos",
   clientesAtivos: "Todos",
@@ -83,6 +87,8 @@ export function Filters({ value, onChange, onApply, showMonth }: FiltersProps) {
     if (value.vencimentoDe || value.vencimentoAte) n++;
     if (value.ultimaIndicacaoDe || value.ultimaIndicacaoAte) n++;
     if (value.ultimaAtivacaoDe || value.ultimaAtivacaoAte) n++;
+    if (value.minIndicacoes || value.maxIndicacoes) n++;
+    if (value.minAtivacoes || value.maxAtivacoes) n++;
     if (value.responsavelPagamento && value.responsavelPagamento !== "Todos")
       n++;
     if (value.leadsAtivos && value.leadsAtivos !== "Todos") n++;
@@ -293,6 +299,51 @@ export function Filters({ value, onChange, onApply, showMonth }: FiltersProps) {
             type="date"
             value={value.ultimaAtivacaoAte || ""}
             onChange={(e) => set({ ultimaAtivacaoAte: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <label className="label">Mínimo de indicações</label>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            placeholder="Ex.: 10"
+            value={value.minIndicacoes || ""}
+            onChange={(e) => set({ minIndicacoes: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Máximo de indicações</label>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            placeholder="Ex.: 500"
+            value={value.maxIndicacoes || ""}
+            onChange={(e) => set({ maxIndicacoes: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Mínimo de ativações</label>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            placeholder="Ex.: 5"
+            value={value.minAtivacoes || ""}
+            onChange={(e) => set({ minAtivacoes: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Máximo de ativações</label>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            placeholder="Ex.: 200"
+            value={value.maxAtivacoes || ""}
+            onChange={(e) => set({ maxAtivacoes: e.target.value })}
           />
         </div>
 

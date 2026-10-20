@@ -1,5 +1,14 @@
 import { checkConnection, query } from "./db";
-import { cacheGet, cacheSet, cacheClear } from "./cache";
+import {
+  cacheGet,
+  cacheSet,
+  cacheClear,
+  diskGet,
+  diskSet,
+  diskClear,
+  cacheMeta,
+  ttlUntilEndOfDayMs,
+} from "./cache";
 import { filtersCacheKey } from "./filters";
 import { intranetUrl } from "./intranet";
 import {
@@ -10,19 +19,23 @@ import {
   durationLabel,
 } from "./format";
 import { BASE_CTE } from "./sql";
+import { ALL_UFS, normalizeUF, tipoCobrancaLabel, UF_NOMES } from "./brasil";
 import {
   ClienteParceiro,
   DashboardData,
   FilterParams,
+  MapData,
   PartnerClientRow,
   PartnerDetailData,
+  PartnerExportRow,
   PartnerSummary,
+  MapStateDetail,
 } from "./types";
 
 const CHURN_DAYS = 60;
-const BASE_TTL_MS = 5 * 60 * 1000;
-const RESULT_TTL_MS = 2 * 60 * 1000;
-const BASE_KEY = "base:clientes_parceiros";
+const BASE_KEY = "base:clientes_parceiros_v2";
+/** Resultados agregados ficam em memória até o fim do dia. */
+const resultTtl = () => ttlUntilEndOfDayMs();
 
 function isLead(row: ClienteParceiro): boolean {
   return String(row.nome_plano || "").trim().toLowerCase() === "teste";
@@ -63,33 +76,60 @@ function normalizeRow(r: ClienteParceiro): ClienteParceiro {
     empresa_indicacao_id: num(r.empresa_indicacao_id),
     valor: num(r.valor),
     tipo_cobranca: r.tipo_cobranca ?? null,
+    tipo_cobranca_parceiro: r.tipo_cobranca_parceiro ?? null,
+    estado: r.estado ?? null,
+    telefone: r.telefone ?? null,
+    celular: r.celular ?? null,
+    email: r.email ?? null,
   };
 }
 
 export async function loadBaseRows(force = false): Promise<ClienteParceiro[]> {
   if (!force) {
-    const cached = cacheGet<ClienteParceiro[]>(BASE_KEY);
-    if (cached) return cached;
+    const mem = cacheGet<ClienteParceiro[]>(BASE_KEY);
+    if (mem) return mem;
+
+    const disk = diskGet<ClienteParceiro[]>(BASE_KEY);
+    if (disk) {
+      cacheSet(BASE_KEY, disk);
+      return disk;
+    }
   }
 
   const sql = `${BASE_CTE} select * from clientes_parceiros`;
   const rows = await query<ClienteParceiro>(sql);
   const normalized = rows.map(normalizeRow);
-  cacheSet(BASE_KEY, normalized, BASE_TTL_MS);
+  cacheSet(BASE_KEY, normalized);
+  diskSet(BASE_KEY, normalized);
   return normalized;
 }
 
-export async function warmupCache(): Promise<{ ok: boolean; rows: number }> {
+export async function warmupCache(): Promise<{
+  ok: boolean;
+  rows: number;
+  fromCache: boolean;
+  savedAt?: string;
+}> {
   try {
-    const rows = await loadBaseRows(true);
-    return { ok: true, rows: rows.length };
+    const hadCache =
+      !!cacheGet<ClienteParceiro[]>(BASE_KEY) ||
+      !!diskGet<ClienteParceiro[]>(BASE_KEY);
+    const rows = await loadBaseRows(false);
+    const meta = cacheMeta(BASE_KEY);
+    return {
+      ok: true,
+      rows: rows.length,
+      fromCache: hadCache,
+      savedAt: meta?.savedAt,
+    };
   } catch {
-    return { ok: false, rows: 0 };
+    return { ok: false, rows: 0, fromCache: false };
   }
 }
 
 export function invalidateDataCache(): void {
   cacheClear();
+  diskClear();
 }
 
 function matchesFilters(
@@ -238,6 +278,46 @@ function matchesPartnerDateFilters(
   return true;
 }
 
+function partnerCountStats(rows: ClienteParceiro[]) {
+  const map = new Map<number, { indicacoes: number; ativacoes: number }>();
+  for (const row of rows) {
+    const id = row.empresa_indicacao_id;
+    const prev = map.get(id) || { indicacoes: 0, ativacoes: 0 };
+    prev.indicacoes += 1;
+    if (isClient(row)) prev.ativacoes += 1;
+    map.set(id, prev);
+  }
+  return map;
+}
+
+function matchesPartnerCountFilters(
+  partnerId: number,
+  counts: Map<number, { indicacoes: number; ativacoes: number }>,
+  filters: FilterParams
+): boolean {
+  const has =
+    filters.minIndicacoes ||
+    filters.maxIndicacoes ||
+    filters.minAtivacoes ||
+    filters.maxAtivacoes;
+  if (!has) return true;
+
+  const c = counts.get(partnerId) || { indicacoes: 0, ativacoes: 0 };
+  if (filters.minIndicacoes && c.indicacoes < Number(filters.minIndicacoes)) {
+    return false;
+  }
+  if (filters.maxIndicacoes && c.indicacoes > Number(filters.maxIndicacoes)) {
+    return false;
+  }
+  if (filters.minAtivacoes && c.ativacoes < Number(filters.minAtivacoes)) {
+    return false;
+  }
+  if (filters.maxAtivacoes && c.ativacoes > Number(filters.maxAtivacoes)) {
+    return false;
+  }
+  return true;
+}
+
 export async function fetchClientes(
   filters: FilterParams
 ): Promise<ClienteParceiro[]> {
@@ -253,7 +333,7 @@ export async function fetchClientes(
 
   const partnerDates = needsPartnerDates ? partnerMaxDates(base) : null;
 
-  return base.filter((row) => {
+  let rows = base.filter((row) => {
     if (!matchesFilters(row, filters, today)) return false;
     if (
       partnerDates &&
@@ -267,6 +347,21 @@ export async function fetchClientes(
     }
     return true;
   });
+
+  const needsCounts =
+    !!filters.minIndicacoes ||
+    !!filters.maxIndicacoes ||
+    !!filters.minAtivacoes ||
+    !!filters.maxAtivacoes;
+
+  if (needsCounts) {
+    const counts = partnerCountStats(rows);
+    rows = rows.filter((row) =>
+      matchesPartnerCountFilters(row.empresa_indicacao_id, counts, filters)
+    );
+  }
+
+  return rows;
 }
 
 export async function fetchPartnerNames(q?: string): Promise<
@@ -301,7 +396,7 @@ export async function fetchPlanNames(): Promise<string[]> {
     if (row.nome_plano) set.add(row.nome_plano);
   }
   const items = Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  cacheSet("plans:names", items, BASE_TTL_MS);
+  cacheSet("plans:names", items, resultTtl());
   return items;
 }
 
@@ -310,7 +405,10 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  const map = new Map<number, PartnerSummary & { conversionDays: number[] }>();
+  const map = new Map<
+    number,
+    PartnerSummary & { conversionDays: number[] }
+  >();
 
   for (const row of rows) {
     const id = row.empresa_indicacao_id;
@@ -329,9 +427,28 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
         tempoMedioConversaoDias: null,
         planos: {},
         conversionDays: [],
+        tipoCobranca:
+          row.tipo_cobranca_parceiro ?? row.tipo_cobranca ?? null,
+        estado: row.estado ?? null,
+        telefone: row.telefone ?? null,
+        celular: row.celular ?? null,
+        email: row.email ?? null,
+        quantidadeIndicacoes: 0,
+        quantidadeAtivacoes: 0,
       });
     }
     const p = map.get(id)!;
+    p.quantidadeIndicacoes += 1;
+    if (!p.estado && row.estado) p.estado = row.estado;
+    if (!p.telefone && row.telefone) p.telefone = row.telefone;
+    if (!p.celular && row.celular) p.celular = row.celular;
+    if (!p.email && row.email) p.email = row.email;
+    if (
+      !p.tipoCobranca &&
+      (row.tipo_cobranca_parceiro || row.tipo_cobranca)
+    ) {
+      p.tipoCobranca = row.tipo_cobranca_parceiro ?? row.tipo_cobranca;
+    }
 
     if (isLead(row)) {
       p.totalLeads += 1;
@@ -339,6 +456,7 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
     }
 
     if (isClient(row)) {
+      p.quantidadeAtivacoes += 1;
       p.totalClientes += 1;
       if (isActiveByDate(row, today)) {
         p.clientesAtivos += 1;
@@ -398,6 +516,13 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
       taxaChurn,
       tempoMedioConversaoDias,
       planos: p.planos,
+      tipoCobranca: p.tipoCobranca,
+      estado: p.estado,
+      telefone: p.telefone,
+      celular: p.celular,
+      email: p.email,
+      quantidadeIndicacoes: p.quantidadeIndicacoes,
+      quantidadeAtivacoes: p.quantidadeAtivacoes,
     };
   });
 }
@@ -576,7 +701,7 @@ export async function getDashboardData(
     cached: false,
   };
 
-  cacheSet(key, result, RESULT_TTL_MS);
+  cacheSet(key, result, resultTtl());
   return result;
 }
 
@@ -596,7 +721,7 @@ export async function getPartnersTable(filters: FilterParams): Promise<{
     all = buildPartnerSummaries(rows).sort(
       (a, b) => b.faturamento - a.faturamento
     );
-    cacheSet(key, all, RESULT_TTL_MS);
+    cacheSet(key, all, resultTtl());
   }
 
   const start = (page - 1) * pageSize;
@@ -896,6 +1021,134 @@ export async function getExpirationsData(
     cached: false,
   };
 
-  cacheSet(key, result, RESULT_TTL_MS);
+  cacheSet(key, result, resultTtl());
+  return result;
+}
+
+export async function getPartnersExport(
+  filters: FilterParams
+): Promise<PartnerExportRow[]> {
+  const rows = await fetchClientes(filters);
+  return buildPartnerSummaries(rows)
+    .sort((a, b) => a.parceiro.localeCompare(b.parceiro, "pt-BR"))
+    .map((p) => ({
+      empresaIndicacaoId: p.empresaIndicacaoId,
+      tipoCobranca: tipoCobrancaLabel(p.tipoCobranca),
+      quantidadeIndicacoes: p.quantidadeIndicacoes,
+      quantidadeAtivacoes: p.quantidadeAtivacoes,
+      taxaConversao: Math.round(p.taxaConversao * 10) / 10,
+      estado: p.estado || "",
+      parceiro: p.parceiro,
+      telefone: p.telefone || "",
+      celular: p.celular || "",
+      email: p.email || "",
+    }));
+}
+
+export async function getMapData(filters: FilterParams): Promise<MapData> {
+  const modo = filters.mapaModo === "parceiros" ? "parceiros" : "clientes";
+  const key = `map:${filtersCacheKey(filters, modo)}`;
+  const cached = cacheGet<MapData>(key);
+  if (cached) return cached;
+
+  const rows = await fetchClientes(filters);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const byUf = new Map<string, number>();
+  for (const uf of ALL_UFS) byUf.set(uf, 0);
+
+  if (modo === "parceiros") {
+    const seen = new Map<string, Set<number>>();
+    for (const uf of ALL_UFS) seen.set(uf, new Set());
+    for (const row of rows) {
+      const uf = normalizeUF(row.estado);
+      if (!uf) continue;
+      seen.get(uf)!.add(row.empresa_indicacao_id);
+    }
+    for (const uf of ALL_UFS) {
+      byUf.set(uf, seen.get(uf)!.size);
+    }
+  } else {
+    for (const row of rows) {
+      if (!isClient(row) || !isActiveByDate(row, today)) continue;
+      const uf = normalizeUF(row.estado);
+      if (!uf) continue;
+      byUf.set(uf, (byUf.get(uf) || 0) + 1);
+    }
+  }
+
+  const states = ALL_UFS.map((uf) => ({
+    uf,
+    nome: UF_NOMES[uf],
+    valor: byUf.get(uf) || 0,
+  }));
+  const max = Math.max(0, ...states.map((s) => s.valor));
+  const total = states.reduce((acc, s) => acc + s.valor, 0);
+
+  const result: MapData = { modo, states, max, total };
+  cacheSet(key, result, resultTtl());
+  return result;
+}
+
+export async function getMapStateDetail(
+  filters: FilterParams,
+  ufRaw: string
+): Promise<MapStateDetail | null> {
+  const uf = normalizeUF(ufRaw);
+  if (!uf || !UF_NOMES[uf]) return null;
+
+  const modo = filters.mapaModo === "parceiros" ? "parceiros" : "clientes";
+  const key = `map-state:${uf}:${filtersCacheKey(filters, modo)}`;
+  const cached = cacheGet<MapStateDetail>(key);
+  if (cached) return cached;
+
+  const rows = await fetchClientes(filters);
+  const inState = rows.filter((r) => normalizeUF(r.estado) === uf);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const result: MapStateDetail = {
+    uf,
+    nome: UF_NOMES[uf],
+    modo,
+    total: 0,
+    parceiros: [],
+    clientes: [],
+  };
+
+  if (modo === "parceiros") {
+    result.parceiros = buildPartnerSummaries(inState)
+      .sort((a, b) => a.parceiro.localeCompare(b.parceiro, "pt-BR"))
+      .map((p) => ({
+        empresaIndicacaoId: p.empresaIndicacaoId,
+        parceiro: p.parceiro,
+        tipoCobranca: tipoCobrancaLabel(p.tipoCobranca),
+        quantidadeIndicacoes: p.quantidadeIndicacoes,
+        quantidadeAtivacoes: p.quantidadeAtivacoes,
+        clientesAtivos: p.clientesAtivos,
+        telefone: p.telefone || "",
+        celular: p.celular || "",
+        email: p.email || "",
+      }));
+    result.total = result.parceiros.length;
+  } else {
+    result.clientes = inState
+      .filter((r) => isClient(r) && isActiveByDate(r, today))
+      .map((r) => ({
+        empresaId: r.empresa_id,
+        plano: r.nome_plano || "",
+        duracao: r.duracao || "",
+        valor: num(r.valor),
+        vencimento: dateStr(r.data_vencimento),
+        parceiro: r.parceiro || "",
+        empresaIndicacaoId: r.empresa_indicacao_id,
+        intranet: intranetUrl(r.empresa_id),
+      }))
+      .sort((a, b) => b.valor - a.valor);
+    result.total = result.clientes.length;
+  }
+
+  cacheSet(key, result, resultTtl());
   return result;
 }

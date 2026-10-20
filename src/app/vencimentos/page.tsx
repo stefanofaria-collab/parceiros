@@ -45,7 +45,7 @@ const PIE_COLORS = [
 export default function VencimentosPage() {
   const { filters, setFilters, applied, apply, setPage, setMonth, queryString } =
     useFilters();
-  const { cachedFetch, getCached, invalidateClientCache } = useDataCache();
+  const { cachedFetch, getCached, refreshFromDb, warm } = useDataCache();
   const [data, setData] = useState<ExpirationsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export default function VencimentosPage() {
       setLoading(true);
       setError(null);
       try {
-        if (force) invalidateClientCache();
+        if (force) await refreshFromDb();
         const json = await cachedFetch<ExpirationsData>(
           key,
           `/api/expirations?${queryString}`,
@@ -78,12 +78,13 @@ export default function VencimentosPage() {
         setLoading(false);
       }
     },
-    [cachedFetch, getCached, invalidateClientCache, queryString]
+    [cachedFetch, getCached, refreshFromDb, queryString]
   );
 
   useEffect(() => {
+    if (!warm) return;
     load();
-  }, [load]);
+  }, [load, warm]);
 
   useEffect(() => {
     setSelectedDay(null);

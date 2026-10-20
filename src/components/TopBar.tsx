@@ -4,15 +4,17 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { RefreshCw } from "lucide-react";
+import { useDataCache } from "@/context/DataCacheContext";
 
 type TopBarProps = {
   title: string;
   eyebrow?: string;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
   loading?: boolean;
 };
 
 export function TopBar({ title, eyebrow, onRefresh, loading }: TopBarProps) {
+  const { cacheInfo } = useDataCache();
   const [dbOk, setDbOk] = useState<boolean | null>(null);
   const today = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
@@ -34,6 +36,9 @@ export function TopBar({ title, eyebrow, onRefresh, loading }: TopBarProps) {
         <h1 className="text-2xl font-semibold tracking-tight text-[#122033]">
           {title}
         </h1>
+        {cacheInfo && (
+          <p className="mt-1 text-xs text-[#8b95a5]">{cacheInfo}</p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -59,12 +64,13 @@ export function TopBar({ title, eyebrow, onRefresh, loading }: TopBarProps) {
         {onRefresh && (
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={() => void onRefresh()}
             className="btn-secondary"
             disabled={loading}
+            title="Recarrega os dados do MySQL (use só quando o banco do dia for atualizado)"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
+            Atualizar do banco
           </button>
         )}
       </div>

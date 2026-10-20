@@ -13,12 +13,17 @@ export type FilterParams = {
   ultimaIndicacaoAte?: string;
   ultimaAtivacaoDe?: string;
   ultimaAtivacaoAte?: string;
+  minIndicacoes?: string;
+  maxIndicacoes?: string;
+  minAtivacoes?: string;
+  maxAtivacoes?: string;
   responsavelPagamento?: "Todos" | "Cliente" | "Parceiro";
   leadsAtivos?: "Todos" | "Sim" | "Nao";
   clientesAtivos?: "Todos" | "Sim" | "Nao";
-  mes?: string; // YYYY-MM for vencimentos
+  mes?: string;
   page?: number;
   pageSize?: number;
+  mapaModo?: "clientes" | "parceiros";
 };
 
 export type ClienteParceiro = {
@@ -32,6 +37,11 @@ export type ClienteParceiro = {
   empresa_indicacao_id: number;
   parceiro: string;
   tipo_cobranca?: string | null;
+  tipo_cobranca_parceiro?: string | null;
+  estado?: string | null;
+  telefone?: string | null;
+  celular?: string | null;
+  email?: string | null;
 };
 
 export type PartnerSummary = {
@@ -47,6 +57,26 @@ export type PartnerSummary = {
   taxaChurn: number;
   tempoMedioConversaoDias: number | null;
   planos: Record<string, number>;
+  tipoCobranca?: string | null;
+  estado?: string | null;
+  telefone?: string | null;
+  celular?: string | null;
+  email?: string | null;
+  quantidadeIndicacoes: number;
+  quantidadeAtivacoes: number;
+};
+
+export type PartnerExportRow = {
+  empresaIndicacaoId: number;
+  tipoCobranca: string;
+  quantidadeIndicacoes: number;
+  quantidadeAtivacoes: number;
+  taxaConversao: number;
+  estado: string;
+  parceiro: string;
+  telefone: string;
+  celular: string;
+  email: string;
 };
 
 export type PartnerClientRow = {
@@ -88,8 +118,52 @@ export type DashboardData = {
   topParceiros: PartnerSummary[];
   evolucaoIndicacoes: { mes: string; quantidade: number }[];
   evolucaoAtivacoes: { mes: string; quantidade: number }[];
-  /** Usado na página de Leads (plano Teste). */
   evolucaoLeads: { mes: string; ativos: number; novos: number }[];
   dbOk: boolean;
   cached?: boolean;
+};
+
+export type MapStateRow = {
+  uf: string;
+  nome: string;
+  valor: number;
+};
+
+export type MapData = {
+  modo: "clientes" | "parceiros";
+  states: MapStateRow[];
+  max: number;
+  total: number;
+};
+
+export type MapStatePartnerItem = {
+  empresaIndicacaoId: number;
+  parceiro: string;
+  tipoCobranca: string;
+  quantidadeIndicacoes: number;
+  quantidadeAtivacoes: number;
+  clientesAtivos: number;
+  telefone: string;
+  celular: string;
+  email: string;
+};
+
+export type MapStateClientItem = {
+  empresaId: number;
+  plano: string;
+  duracao: string;
+  valor: number;
+  vencimento: string | null;
+  parceiro: string;
+  empresaIndicacaoId: number;
+  intranet: string;
+};
+
+export type MapStateDetail = {
+  uf: string;
+  nome: string;
+  modo: "clientes" | "parceiros";
+  total: number;
+  parceiros: MapStatePartnerItem[];
+  clientes: MapStateClientItem[];
 };
