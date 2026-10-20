@@ -1,8 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, X } from "lucide-react";
-import { PartnerClientRow } from "@/lib/types";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarCheck2,
+  ExternalLink,
+  UserPlus,
+  X,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
+import { PartnerClientRow, PartnerDetailData } from "@/lib/types";
 import {
   formatCurrency,
   formatDate,
@@ -35,8 +52,7 @@ export function PartnerClientsModal({
   onClose,
 }: Props) {
   const [loading, setLoading] = useState(false);
-  const [clientes, setClientes] = useState<PartnerClientRow[]>([]);
-  const [nome, setNome] = useState(partnerName || "");
+  const [detail, setDetail] = useState<PartnerDetailData | null>(null);
   const [plano, setPlano] = useState("");
   const [duracao, setDuracao] = useState("");
   const [vencimentoDe, setVencimentoDe] = useState("");
@@ -55,12 +71,12 @@ export function PartnerClientsModal({
     setSortDir("desc");
     fetch(`/api/partners/${partnerId}/clients?${queryString}`)
       .then((r) => r.json())
-      .then((d) => {
-        setClientes(d.clientes || []);
-        setNome(d.parceiro || partnerName || "");
-      })
+      .then((d: PartnerDetailData) => setDetail(d))
       .finally(() => setLoading(false));
-  }, [partnerId, queryString, partnerName]);
+  }, [partnerId, queryString]);
+
+  const clientes = detail?.clientes || [];
+  const nome = detail?.parceiro || partnerName || "";
 
   const planosDisponiveis = useMemo(() => {
     return Array.from(new Set(clientes.map((c) => c.plano).filter(Boolean))).sort(
@@ -71,12 +87,8 @@ export function PartnerClientsModal({
   const filtered = useMemo(() => {
     let rows = [...clientes];
 
-    if (plano) {
-      rows = rows.filter((c) => c.plano === plano);
-    }
-    if (duracao) {
-      rows = rows.filter((c) => c.duracao === duracao);
-    }
+    if (plano) rows = rows.filter((c) => c.plano === plano);
+    if (duracao) rows = rows.filter((c) => c.duracao === duracao);
     if (vencimentoDe) {
       rows = rows.filter(
         (c) => c.vencimento != null && c.vencimento >= vencimentoDe
@@ -90,13 +102,12 @@ export function PartnerClientsModal({
 
     const dir = sortDir === "asc" ? 1 : -1;
     rows.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = a[sortKey as keyof PartnerClientRow];
+      const bv = b[sortKey as keyof PartnerClientRow];
 
       if (sortKey === "valor" || sortKey === "empresaId") {
         return (Number(av) - Number(bv)) * dir;
       }
-
       if (sortKey === "vencimento") {
         const as = String(av || "");
         const bs = String(bv || "");
@@ -105,7 +116,6 @@ export function PartnerClientsModal({
         if (!bs) return -1;
         return as.localeCompare(bs) * dir;
       }
-
       if (sortKey === "duracao") {
         return (
           durationLabel(String(av || "")).localeCompare(
@@ -114,7 +124,6 @@ export function PartnerClientsModal({
           ) * dir
         );
       }
-
       return (
         String(av || "").localeCompare(String(bv || ""), "pt-BR", {
           sensitivity: "base",
@@ -135,6 +144,8 @@ export function PartnerClientsModal({
   };
 
   if (!partnerId) return null;
+
+  const chartData = detail?.clientesAtivosPorPlano || [];
 
   return (
     <div
@@ -176,57 +187,135 @@ export function PartnerClientsModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 border-b border-[#eef2f6] px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <label className="label">Plano</label>
-            <select
-              className="input"
-              value={plano}
-              onChange={(e) => setPlano(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {planosDisponiveis.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Duração</label>
-            <select
-              className="input"
-              value={duracao}
-              onChange={(e) => setDuracao(e.target.value)}
-            >
-              <option value="">Todas</option>
-              <option value="M">Mensal</option>
-              <option value="A">Anual</option>
-              <option value="S">Semestral</option>
-              <option value="T">Trimestral</option>
-            </select>
-          </div>
-          <div>
-            <label className="label">Vencimento de</label>
-            <input
-              className="input"
-              type="date"
-              value={vencimentoDe}
-              onChange={(e) => setVencimentoDe(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Vencimento até</label>
-            <input
-              className="input"
-              type="date"
-              value={vencimentoAte}
-              onChange={(e) => setVencimentoAte(e.target.value)}
-            />
-          </div>
-        </div>
-
         <div className="overflow-auto">
+          <div className="space-y-4 px-5 py-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="card p-4">
+                <div className="flex items-start justify-between">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+                    Última indicação
+                  </p>
+                  <div className="rounded-lg bg-brand/10 p-2 text-brand">
+                    <UserPlus className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-semibold text-[#122033]">
+                  {formatDate(detail?.ultimaIndicacao)}
+                </p>
+                <p className="mt-1 text-xs text-[#8b95a5]">
+                  Maior data em cadastrado_em
+                </p>
+              </div>
+              <div className="card p-4">
+                <div className="flex items-start justify-between">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+                    Última ativação
+                  </p>
+                  <div className="rounded-lg bg-brand/10 p-2 text-brand">
+                    <CalendarCheck2 className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-semibold text-[#122033]">
+                  {formatDate(detail?.ultimaAtivacao)}
+                </p>
+                <p className="mt-1 text-xs text-[#8b95a5]">
+                  Maior data em ativou_em
+                </p>
+              </div>
+            </div>
+
+            <div className="card p-4">
+              <h4 className="mb-1 text-sm font-semibold text-[#122033]">
+                Clientes ativos por plano e duração
+              </h4>
+              <p className="mb-3 text-xs text-[#6b7280]">
+                Quantidade de clientes com vencimento ≥ hoje, agrupados por plano
+                e duração.
+              </p>
+              <div className="h-64">
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ bottom: 48, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 10 }}
+                        interval={0}
+                        angle={-25}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Bar
+                        dataKey="quantidade"
+                        name="Clientes ativos"
+                        fill="#01636b"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-[#94a3b8]">
+                    {loading
+                      ? "Carregando gráfico…"
+                      : "Nenhum cliente ativo neste parceiro."}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 border-y border-[#eef2f6] px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="label">Plano</label>
+              <select
+                className="input"
+                value={plano}
+                onChange={(e) => setPlano(e.target.value)}
+              >
+                <option value="">Todos</option>
+                {planosDisponiveis.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Duração</label>
+              <select
+                className="input"
+                value={duracao}
+                onChange={(e) => setDuracao(e.target.value)}
+              >
+                <option value="">Todas</option>
+                <option value="M">Mensal</option>
+                <option value="A">Anual</option>
+                <option value="S">Semestral</option>
+                <option value="T">Trimestral</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Vencimento de</label>
+              <input
+                className="input"
+                type="date"
+                value={vencimentoDe}
+                onChange={(e) => setVencimentoDe(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Vencimento até</label>
+              <input
+                className="input"
+                type="date"
+                value={vencimentoAte}
+                onChange={(e) => setVencimentoAte(e.target.value)}
+              />
+            </div>
+          </div>
+
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-[#f8fafc] text-left text-[11px] uppercase tracking-wide text-[#8b95a5]">
               <tr>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#01636b"/>
+  <!-- left sleeve -->
+  <path fill="#9ad4d8" d="M8 28c0-3 2-5 5-5h8l6 8-10 10H13c-3 0-5-2-5-5V28z"/>
+  <!-- right sleeve -->
+  <path fill="#9ad4d8" d="M56 36c0 3-2 5-5 5h-8l-6-8 10-10h9c3 0 5 2 5 5v8z"/>
+  <!-- clasped hands -->
+  <path fill="#ffffff" d="M22 24c2-3 7-4 10-1l2 2 2-2c3-3 8-2 10 1l3 4c2 3 1 7-2 9l-7 5c-2 1-5 1-7-1l-1-1-1 1c-2 2-5 2-7 1l-7-5c-3-2-4-6-2-9l3-4z"/>
+  <!-- grip lines -->
+  <path stroke="#01636b" stroke-width="1.5" stroke-linecap="round" fill="none" d="M28 30l3 3M31 28l3 3M34 30l3 3"/>
+</svg>

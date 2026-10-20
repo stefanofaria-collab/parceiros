@@ -26,6 +26,10 @@ export function parseFilters(
     ativacaoAte: get("ativacaoAte"),
     vencimentoDe: get("vencimentoDe"),
     vencimentoAte: get("vencimentoAte"),
+    ultimaIndicacaoDe: get("ultimaIndicacaoDe"),
+    ultimaIndicacaoAte: get("ultimaIndicacaoAte"),
+    ultimaAtivacaoDe: get("ultimaAtivacaoDe"),
+    ultimaAtivacaoAte: get("ultimaAtivacaoAte"),
     responsavelPagamento:
       responsavel === "Cliente" ||
       responsavel === "Parceiro" ||

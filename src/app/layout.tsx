@@ -12,6 +12,13 @@ const geistSans = localFont({
 export const metadata: Metadata = {
   title: "Dashboard de Parceiros",
   description: "Inteligência comercial de parceiros e vencimentos",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", type: "image/png", sizes: "64x64" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "64x64", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

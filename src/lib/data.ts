@@ -2,13 +2,20 @@ import { checkConnection, query } from "./db";
 import { cacheGet, cacheSet, cacheClear } from "./cache";
 import { filtersCacheKey } from "./filters";
 import { intranetUrl } from "./intranet";
-import { toDate, daysUntil, yearsBetween, currentMonth } from "./format";
+import {
+  toDate,
+  daysUntil,
+  yearsBetween,
+  currentMonth,
+  durationLabel,
+} from "./format";
 import { BASE_CTE } from "./sql";
 import {
   ClienteParceiro,
   DashboardData,
   FilterParams,
   PartnerClientRow,
+  PartnerDetailData,
   PartnerSummary,
 } from "./types";
 
@@ -156,13 +163,110 @@ function matchesFilters(
   return true;
 }
 
+function partnerMaxDates(rows: ClienteParceiro[]) {
+  const map = new Map<
+    number,
+    { ultimaIndicacao: string | null; ultimaAtivacao: string | null }
+  >();
+  for (const row of rows) {
+    const id = row.empresa_indicacao_id;
+    const prev = map.get(id) || {
+      ultimaIndicacao: null,
+      ultimaAtivacao: null,
+    };
+    const cad = dateStr(row.cadastrado_em);
+    if (cad && (!prev.ultimaIndicacao || cad > prev.ultimaIndicacao)) {
+      prev.ultimaIndicacao = cad;
+    }
+    const ativ = dateStr(row.ativou_em);
+    if (ativ && (!prev.ultimaAtivacao || ativ > prev.ultimaAtivacao)) {
+      prev.ultimaAtivacao = ativ;
+    }
+    map.set(id, prev);
+  }
+  return map;
+}
+
+function matchesPartnerDateFilters(
+  partnerId: number,
+  partnerDates: Map<
+    number,
+    { ultimaIndicacao: string | null; ultimaAtivacao: string | null }
+  >,
+  filters: FilterParams
+): boolean {
+  const hasIndicacao =
+    !!filters.ultimaIndicacaoDe || !!filters.ultimaIndicacaoAte;
+  const hasAtivacao = !!filters.ultimaAtivacaoDe || !!filters.ultimaAtivacaoAte;
+  if (!hasIndicacao && !hasAtivacao) return true;
+
+  const dates = partnerDates.get(partnerId);
+  if (!dates) return false;
+
+  if (hasIndicacao) {
+    if (!dates.ultimaIndicacao) return false;
+    if (
+      filters.ultimaIndicacaoDe &&
+      dates.ultimaIndicacao < filters.ultimaIndicacaoDe
+    ) {
+      return false;
+    }
+    if (
+      filters.ultimaIndicacaoAte &&
+      dates.ultimaIndicacao > filters.ultimaIndicacaoAte
+    ) {
+      return false;
+    }
+  }
+
+  if (hasAtivacao) {
+    if (!dates.ultimaAtivacao) return false;
+    if (
+      filters.ultimaAtivacaoDe &&
+      dates.ultimaAtivacao < filters.ultimaAtivacaoDe
+    ) {
+      return false;
+    }
+    if (
+      filters.ultimaAtivacaoAte &&
+      dates.ultimaAtivacao > filters.ultimaAtivacaoAte
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export async function fetchClientes(
   filters: FilterParams
 ): Promise<ClienteParceiro[]> {
   const base = await loadBaseRows();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return base.filter((row) => matchesFilters(row, filters, today));
+
+  const needsPartnerDates =
+    !!filters.ultimaIndicacaoDe ||
+    !!filters.ultimaIndicacaoAte ||
+    !!filters.ultimaAtivacaoDe ||
+    !!filters.ultimaAtivacaoAte;
+
+  const partnerDates = needsPartnerDates ? partnerMaxDates(base) : null;
+
+  return base.filter((row) => {
+    if (!matchesFilters(row, filters, today)) return false;
+    if (
+      partnerDates &&
+      !matchesPartnerDateFilters(
+        row.empresa_indicacao_id,
+        partnerDates,
+        filters
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
 }
 
 export async function fetchPartnerNames(q?: string): Promise<
@@ -319,7 +423,10 @@ export async function getDashboardData(
       ativacoes3m: 0,
       tempoMedioConversaoDias: null,
       planosVendidos: [],
+      planosPorDuracao: [],
       topParceiros: [],
+      evolucaoIndicacoes: [],
+      evolucaoAtivacoes: [],
       evolucaoLeads: [],
       dbOk: false,
     };
@@ -341,25 +448,36 @@ export async function getDashboardData(
   let churnBase = 0;
   const conversionDays: number[] = [];
   const planosMap = new Map<string, { quantidade: number; valor: number }>();
-  const evolucaoMap = new Map<string, { ativos: number; novos: number }>();
+  const duracaoMap = new Map<string, number>();
+  const indicacoesMap = new Map<string, number>();
+  const ativacoesMap = new Map<string, number>();
+  const leadsMap = new Map<string, { ativos: number; novos: number }>();
 
   for (let i = 11; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    evolucaoMap.set(k, { ativos: 0, novos: 0 });
+    indicacoesMap.set(k, 0);
+    ativacoesMap.set(k, 0);
+    leadsMap.set(k, { ativos: 0, novos: 0 });
   }
 
   for (const row of rows) {
     partners.add(row.empresa_indicacao_id);
 
+    const cad = toDate(row.cadastrado_em);
+    if (cad) {
+      const k = `${cad.getFullYear()}-${String(cad.getMonth() + 1).padStart(2, "0")}`;
+      if (indicacoesMap.has(k)) {
+        indicacoesMap.set(k, (indicacoesMap.get(k) || 0) + 1);
+      }
+    }
+
     if (isLead(row)) {
       totalLeads += 1;
       if (isActiveByDate(row, today)) leadsAtivos += 1;
-
-      const cad = toDate(row.cadastrado_em);
       if (cad) {
         const k = `${cad.getFullYear()}-${String(cad.getMonth() + 1).padStart(2, "0")}`;
-        const slot = evolucaoMap.get(k);
+        const slot = leadsMap.get(k);
         if (slot) {
           slot.novos += 1;
           if (isActiveByDate(row, today)) slot.ativos += 1;
@@ -375,9 +493,14 @@ export async function getDashboardData(
       }
 
       const ativou = toDate(row.ativou_em);
-      if (ativou && ativou >= threeMonthsAgo) ativacoes3m += 1;
+      if (ativou) {
+        const k = `${ativou.getFullYear()}-${String(ativou.getMonth() + 1).padStart(2, "0")}`;
+        if (ativacoesMap.has(k)) {
+          ativacoesMap.set(k, (ativacoesMap.get(k) || 0) + 1);
+        }
+        if (ativou >= threeMonthsAgo) ativacoes3m += 1;
+      }
 
-      const cad = toDate(row.cadastrado_em);
       if (cad && ativou) {
         const dias = daysUntil(ativou, cad);
         if (dias !== null && dias >= 0) conversionDays.push(dias);
@@ -392,14 +515,24 @@ export async function getDashboardData(
         prev.quantidade += 1;
         if (isActiveByDate(row, today)) prev.valor += num(row.valor);
         planosMap.set(plano, prev);
+
+        const dur = row.duracao || "?";
+        duracaoMap.set(dur, (duracaoMap.get(dur) || 0) + 1);
       }
     }
   }
 
-  let running = 0;
-  const evolucaoLeads = Array.from(evolucaoMap.entries()).map(([mes, v]) => {
-    running += v.ativos;
-    return { mes, ativos: running, novos: v.novos };
+  const evolucaoIndicacoes = Array.from(indicacoesMap.entries()).map(
+    ([mes, quantidade]) => ({ mes, quantidade })
+  );
+  const evolucaoAtivacoes = Array.from(ativacoesMap.entries()).map(
+    ([mes, quantidade]) => ({ mes, quantidade })
+  );
+
+  let runningLeads = 0;
+  const evolucaoLeads = Array.from(leadsMap.entries()).map(([mes, v]) => {
+    runningLeads += v.ativos;
+    return { mes, ativos: runningLeads, novos: v.novos };
   });
 
   const summaries = buildPartnerSummaries(rows).sort(
@@ -428,7 +561,16 @@ export async function getDashboardData(
     planosVendidos: Array.from(planosMap.entries())
       .map(([plano, v]) => ({ plano, ...v }))
       .sort((a, b) => b.quantidade - a.quantidade),
+    planosPorDuracao: Array.from(duracaoMap.entries())
+      .map(([duracao, quantidade]) => ({
+        duracao,
+        label: durationLabel(duracao),
+        quantidade,
+      }))
+      .sort((a, b) => b.quantidade - a.quantidade),
     topParceiros: summaries.slice(0, 15),
+    evolucaoIndicacoes,
+    evolucaoAtivacoes,
     evolucaoLeads,
     dbOk: true,
     cached: false,
@@ -469,18 +611,53 @@ export async function getPartnersTable(filters: FilterParams): Promise<{
 export async function getPartnerClients(
   partnerId: number,
   filters: FilterParams = {}
-): Promise<{
-  parceiro: string;
-  empresaIndicacaoId: number;
-  clientes: PartnerClientRow[];
-}> {
+): Promise<PartnerDetailData> {
   const rows = await fetchClientes({
     ...filters,
     empresaIndicacaoId: String(partnerId),
   });
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const parceiro = rows[0]?.parceiro || `Parceiro #${partnerId}`;
-  const clientes = rows
+
+  let ultimaIndicacao: string | null = null;
+  let ultimaAtivacao: string | null = null;
+  for (const row of rows) {
+    const cad = dateStr(row.cadastrado_em);
+    if (cad && (!ultimaIndicacao || cad > ultimaIndicacao)) {
+      ultimaIndicacao = cad;
+    }
+    const ativ = dateStr(row.ativou_em);
+    if (ativ && (!ultimaAtivacao || ativ > ultimaAtivacao)) {
+      ultimaAtivacao = ativ;
+    }
+  }
+
+  const ativosMap = new Map<
+    string,
+    { plano: string; duracao: string; quantidade: number }
+  >();
+  for (const row of rows) {
+    if (isLead(row)) continue;
+    if (!isActiveByDate(row, today)) continue;
+    const plano = row.nome_plano || "Outros";
+    const duracao = row.duracao || "?";
+    const key = `${plano}|${duracao}`;
+    const prev = ativosMap.get(key) || { plano, duracao, quantidade: 0 };
+    prev.quantidade += 1;
+    ativosMap.set(key, prev);
+  }
+
+  const clientesAtivosPorPlano = Array.from(ativosMap.values())
+    .map((v) => ({
+      ...v,
+      label: `${v.plano} · ${durationLabel(v.duracao)}`,
+    }))
+    .sort((a, b) => b.quantidade - a.quantidade);
+
+  const clientes: PartnerClientRow[] = rows
     .filter((r) => !isLead(r))
     .map((r) => ({
       empresaId: r.empresa_id,
@@ -495,6 +672,9 @@ export async function getPartnerClients(
   return {
     parceiro,
     empresaIndicacaoId: partnerId,
+    ultimaIndicacao,
+    ultimaAtivacao,
+    clientesAtivosPorPlano,
     clientes,
   };
 }

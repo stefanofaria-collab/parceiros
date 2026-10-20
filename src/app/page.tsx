@@ -75,8 +75,14 @@ export default function HomePage() {
     load();
   }, [load]);
 
-  const evolucao =
-    data?.evolucaoLeads.map((e) => ({
+  const evolucaoIndicacoes =
+    data?.evolucaoIndicacoes.map((e) => ({
+      ...e,
+      label: formatMonthLabel(e.mes),
+    })) || [];
+
+  const evolucaoAtivacoes =
+    data?.evolucaoAtivacoes.map((e) => ({
       ...e,
       label: formatMonthLabel(e.mes),
     })) || [];
@@ -158,20 +164,19 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <div className="card p-5 xl:col-span-2">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div className="card p-5">
             <h3 className="mb-1 text-base font-semibold text-[#122033]">
-              Evolução de leads ativos
+              Evolução de indicações
             </h3>
             <p className="mb-4 text-sm text-[#6b7280]">
-              Estoque acumulado de leads (plano Teste) ainda no prazo, por mês
-              de cadastro.
+              Quantidade de indicações (cadastros) por mês nos últimos 12 meses.
             </p>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={evolucao}>
+                <AreaChart data={evolucaoIndicacoes}>
                   <defs>
-                    <linearGradient id="leadFill" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="indFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#01636b" stopOpacity={0.35} />
                       <stop offset="100%" stopColor="#01636b" stopOpacity={0.02} />
                     </linearGradient>
@@ -182,10 +187,10 @@ export default function HomePage() {
                   <Tooltip />
                   <Area
                     type="monotone"
-                    dataKey="ativos"
-                    name="Leads ativos acum."
+                    dataKey="quantidade"
+                    name="Indicações"
                     stroke="#01636b"
-                    fill="url(#leadFill)"
+                    fill="url(#indFill)"
                     strokeWidth={2}
                   />
                 </AreaChart>
@@ -193,6 +198,41 @@ export default function HomePage() {
             </div>
           </div>
 
+          <div className="card p-5">
+            <h3 className="mb-1 text-base font-semibold text-[#122033]">
+              Evolução de ativações
+            </h3>
+            <p className="mb-4 text-sm text-[#6b7280]">
+              Quantidade de ativações por mês nos últimos 12 meses.
+            </p>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={evolucaoAtivacoes}>
+                  <defs>
+                    <linearGradient id="ativFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#33a7af" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#33a7af" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="quantidade"
+                    name="Ativações"
+                    stroke="#33a7af"
+                    fill="url(#ativFill)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <div className="card p-5">
             <h3 className="mb-1 text-base font-semibold text-[#122033]">
               Planos vendidos
@@ -204,19 +244,43 @@ export default function HomePage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={(data?.planosVendidos || []).slice(0, 8)}
-                  layout="vertical"
-                  margin={{ left: 16 }}
+                  margin={{ bottom: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="plano"
-                    width={80}
-                    tick={{ fontSize: 11 }}
-                  />
+                  <XAxis dataKey="plano" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="quantidade" name="Qtd" fill="#01636b" radius={4} />
+                  <Bar
+                    dataKey="quantidade"
+                    name="Qtd"
+                    fill="#01636b"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <h3 className="mb-1 text-base font-semibold text-[#122033]">
+              Planos por duração
+            </h3>
+            <p className="mb-4 text-sm text-[#6b7280]">
+              Quantidade de planos por duração (clientes).
+            </p>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data?.planosPorDuracao || []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar
+                    dataKey="quantidade"
+                    name="Qtd"
+                    fill="#33a7af"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>

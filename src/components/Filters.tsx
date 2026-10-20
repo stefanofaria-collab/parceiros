@@ -22,6 +22,10 @@ const empty: FilterParams = {
   ativacaoAte: "",
   vencimentoDe: "",
   vencimentoAte: "",
+  ultimaIndicacaoDe: "",
+  ultimaIndicacaoAte: "",
+  ultimaAtivacaoDe: "",
+  ultimaAtivacaoAte: "",
   responsavelPagamento: "Todos",
   leadsAtivos: "Todos",
   clientesAtivos: "Todos",
@@ -77,6 +81,8 @@ export function Filters({ value, onChange, onApply, showMonth }: FiltersProps) {
     if (value.cadastroDe || value.cadastroAte) n++;
     if (value.ativacaoDe || value.ativacaoAte) n++;
     if (value.vencimentoDe || value.vencimentoAte) n++;
+    if (value.ultimaIndicacaoDe || value.ultimaIndicacaoAte) n++;
+    if (value.ultimaAtivacaoDe || value.ultimaAtivacaoAte) n++;
     if (value.responsavelPagamento && value.responsavelPagamento !== "Todos")
       n++;
     if (value.leadsAtivos && value.leadsAtivos !== "Todos") n++;
@@ -250,6 +256,43 @@ export function Filters({ value, onChange, onApply, showMonth }: FiltersProps) {
             type="date"
             value={value.vencimentoAte || ""}
             onChange={(e) => set({ vencimentoAte: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <label className="label">Última indicação de</label>
+          <input
+            className="input"
+            type="date"
+            value={value.ultimaIndicacaoDe || ""}
+            onChange={(e) => set({ ultimaIndicacaoDe: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Última indicação até</label>
+          <input
+            className="input"
+            type="date"
+            value={value.ultimaIndicacaoAte || ""}
+            onChange={(e) => set({ ultimaIndicacaoAte: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Última ativação de</label>
+          <input
+            className="input"
+            type="date"
+            value={value.ultimaAtivacaoDe || ""}
+            onChange={(e) => set({ ultimaAtivacaoDe: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Última ativação até</label>
+          <input
+            className="input"
+            type="date"
+            value={value.ultimaAtivacaoAte || ""}
+            onChange={(e) => set({ ultimaAtivacaoAte: e.target.value })}
           />
         </div>
 
