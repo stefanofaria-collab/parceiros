@@ -1,3 +1,14 @@
+export type PartnerSortKey =
+  | "parceiro"
+  | "leadsAtivos"
+  | "clientesAtivos"
+  | "taxaConversao"
+  | "ultimaIndicacao"
+  | "ultimaAtivacao"
+  | "ativacoes3m"
+  | "tempoMedioConversaoDias"
+  | "faturamento";
+
 export type FilterParams = {
   parceiro?: string;
   empresaIndicacaoId?: string;
@@ -24,6 +35,8 @@ export type FilterParams = {
   page?: number;
   pageSize?: number;
   mapaModo?: "clientes" | "parceiros";
+  sortBy?: PartnerSortKey;
+  sortDir?: "asc" | "desc";
 };
 
 export type ClienteParceiro = {
@@ -56,6 +69,8 @@ export type PartnerSummary = {
   taxaConversao: number;
   taxaChurn: number;
   tempoMedioConversaoDias: number | null;
+  ultimaIndicacao: string | null;
+  ultimaAtivacao: string | null;
   planos: Record<string, number>;
   tipoCobranca?: string | null;
   estado?: string | null;
@@ -93,6 +108,12 @@ export type PartnerDetailData = {
   empresaIndicacaoId: number;
   ultimaIndicacao: string | null;
   ultimaAtivacao: string | null;
+  /** Soma do valor de todos os planos vendidos (clientes, exclui Teste). */
+  faturamentoTotal: number;
+  /** Soma do valor das ativações nos últimos 3 meses (rolling). */
+  faturamento3m: number;
+  /** Soma do valor das ativações no mês civil atual. */
+  faturamentoMesAtual: number;
   clientesAtivosPorPlano: {
     label: string;
     plano: string;

@@ -59,6 +59,7 @@ export function PartnerClientsModal({
   const [vencimentoAte, setVencimentoAte] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("valor");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [periodoFat, setPeriodoFat] = useState<"3m" | "mes">("3m");
 
   useEffect(() => {
     if (!partnerId) return;
@@ -69,6 +70,7 @@ export function PartnerClientsModal({
     setVencimentoAte("");
     setSortKey("valor");
     setSortDir("desc");
+    setPeriodoFat("3m");
     fetch(`/api/partners/${partnerId}/clients?${queryString}`)
       .then((r) => r.json())
       .then((d: PartnerDetailData) => setDetail(d))
@@ -146,6 +148,15 @@ export function PartnerClientsModal({
   if (!partnerId) return null;
 
   const chartData = detail?.clientesAtivosPorPlano || [];
+  const faturamentoTotal = detail?.faturamentoTotal ?? 0;
+  const faturamentoPeriodo =
+    periodoFat === "3m"
+      ? detail?.faturamento3m ?? 0
+      : detail?.faturamentoMesAtual ?? 0;
+  const comissaoTotal = faturamentoTotal * 0.3;
+  const comissaoPeriodo = faturamentoPeriodo * 0.3;
+  const periodoLabel =
+    periodoFat === "3m" ? "Últimos 3 meses" : "Mês atual";
 
   return (
     <div
@@ -262,6 +273,79 @@ export function PartnerClientsModal({
                       : "Nenhum cliente ativo neste parceiro."}
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="card p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+                  Faturamento total
+                </p>
+                <p className="mt-2 text-xl font-semibold text-[#122033]">
+                  {formatCurrency(faturamentoTotal)}
+                </p>
+                <p className="mt-1 text-xs text-[#8b95a5]">
+                  Soma de todos os planos vendidos
+                </p>
+              </div>
+              <div className="card p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+                  Comissão projetada
+                </p>
+                <p className="mt-2 text-xl font-semibold text-brand">
+                  {formatCurrency(comissaoTotal)}
+                </p>
+                <p className="mt-1 text-xs text-[#8b95a5]">
+                  30% do faturamento total
+                </p>
+              </div>
+              <div className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+                    Faturamento {periodoFat === "3m" ? "3M" : "mês"}
+                  </p>
+                  <select
+                    className="rounded border border-[#e5eaf0] bg-white px-1.5 py-0.5 text-[10px] font-medium text-[#475569]"
+                    value={periodoFat}
+                    onChange={(e) =>
+                      setPeriodoFat(e.target.value as "3m" | "mes")
+                    }
+                    aria-label="Período do faturamento"
+                  >
+                    <option value="3m">Últimos 3 meses</option>
+                    <option value="mes">Mês atual</option>
+                  </select>
+                </div>
+                <p className="mt-2 text-xl font-semibold text-[#122033]">
+                  {formatCurrency(faturamentoPeriodo)}
+                </p>
+                <p className="mt-1 text-xs text-[#8b95a5]">
+                  Ativações em {periodoLabel.toLowerCase()}
+                </p>
+              </div>
+              <div className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+                    Comissão {periodoFat === "3m" ? "3M" : "mês"}
+                  </p>
+                  <select
+                    className="rounded border border-[#e5eaf0] bg-white px-1.5 py-0.5 text-[10px] font-medium text-[#475569]"
+                    value={periodoFat}
+                    onChange={(e) =>
+                      setPeriodoFat(e.target.value as "3m" | "mes")
+                    }
+                    aria-label="Período da comissão"
+                  >
+                    <option value="3m">Últimos 3 meses</option>
+                    <option value="mes">Mês atual</option>
+                  </select>
+                </div>
+                <p className="mt-2 text-xl font-semibold text-brand">
+                  {formatCurrency(comissaoPeriodo)}
+                </p>
+                <p className="mt-1 text-xs text-[#8b95a5]">
+                  30% do faturamento do período
+                </p>
               </div>
             </div>
           </div>

@@ -1,4 +1,16 @@
-import { FilterParams } from "./types";
+import { FilterParams, PartnerSortKey } from "./types";
+
+const PARTNER_SORT_KEYS: PartnerSortKey[] = [
+  "parceiro",
+  "leadsAtivos",
+  "clientesAtivos",
+  "taxaConversao",
+  "ultimaIndicacao",
+  "ultimaAtivacao",
+  "ativacoes3m",
+  "tempoMedioConversaoDias",
+  "faturamento",
+];
 
 export function parseFilters(
   searchParams: URLSearchParams | Record<string, string | string[] | undefined>
@@ -14,6 +26,8 @@ export function parseFilters(
   const leads = get("leadsAtivos");
   const clientes = get("clientesAtivos");
   const responsavel = get("responsavelPagamento");
+  const sortByRaw = get("sortBy");
+  const sortDirRaw = get("sortDir");
 
   return {
     parceiro: get("parceiro"),
@@ -53,6 +67,11 @@ export function parseFilters(
     mes: get("mes"),
     page: Number(get("page") || 1),
     pageSize: Number(get("pageSize") || 50),
+    sortBy:
+      sortByRaw && PARTNER_SORT_KEYS.includes(sortByRaw as PartnerSortKey)
+        ? (sortByRaw as PartnerSortKey)
+        : undefined,
+    sortDir: sortDirRaw === "asc" || sortDirRaw === "desc" ? sortDirRaw : undefined,
   };
 }
 
@@ -71,7 +90,7 @@ export function filtersToQuery(filters: FilterParams): string {
   return params.toString();
 }
 
-/** Chave estável para cache (ignora paginação). */
+/** Chave estável para cache (ignora paginação e ordenação). */
 export function filtersCacheKey(
   filters: FilterParams,
   extra = ""
@@ -79,5 +98,7 @@ export function filtersCacheKey(
   const rest = { ...filters };
   delete rest.page;
   delete rest.pageSize;
+  delete rest.sortBy;
+  delete rest.sortDir;
   return `${JSON.stringify(rest)}|${extra}`;
 }

@@ -1,20 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Download, ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Download,
+  ExternalLink,
+} from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { Filters } from "@/components/Filters";
 import { PartnerClientsModal } from "@/components/PartnerClientsModal";
 import { ExportPartnersModal } from "@/components/ExportPartnersModal";
 import { useFilters } from "@/hooks/useFilters";
 import { useDataCache } from "@/context/DataCacheContext";
-import { PartnerSummary } from "@/lib/types";
+import { PartnerSortKey, PartnerSummary } from "@/lib/types";
 import { intranetUrl } from "@/lib/intranet";
 import {
   formatCurrency,
+  formatDate,
   formatNumber,
   formatPercent,
 } from "@/lib/format";
+
+type SortDir = "asc" | "desc";
 
 export default function ParceirosPage() {
   const { filters, setFilters, applied, apply, setPage, queryString } =
@@ -25,6 +34,8 @@ export default function ParceirosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<PartnerSortKey>("faturamento");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<{
     id: number;
     nome: string;
@@ -34,9 +45,16 @@ export default function ParceirosPage() {
   const pageSize = applied.pageSize || 50;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const partnersQuery = useMemo(() => {
+    const params = new URLSearchParams(queryString);
+    params.set("sortBy", sortBy);
+    params.set("sortDir", sortDir);
+    return params.toString();
+  }, [queryString, sortBy, sortDir]);
+
   const load = useCallback(
     async (force = false) => {
-      const key = `partners:${queryString}`;
+      const key = `partners:${partnersQuery}`;
       if (!force) {
         const hit = getCached<{ items: PartnerSummary[]; total: number }>(key);
         if (hit) {
@@ -53,7 +71,7 @@ export default function ParceirosPage() {
         const json = await cachedFetch<{
           items: PartnerSummary[];
           total: number;
-        }>(key, `/api/partners?${queryString}`, { force });
+        }>(key, `/api/partners?${partnersQuery}`, { force });
         setItems(json.items || []);
         setTotal(json.total || 0);
       } catch (e) {
@@ -62,13 +80,29 @@ export default function ParceirosPage() {
         setLoading(false);
       }
     },
-    [cachedFetch, getCached, refreshFromDb, queryString]
+    [cachedFetch, getCached, refreshFromDb, partnersQuery]
   );
 
   useEffect(() => {
     if (!warm) return;
     load();
   }, [load, warm]);
+
+  const toggleSort = (key: PartnerSortKey) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir(
+        key === "parceiro" ||
+          key === "ultimaIndicacao" ||
+          key === "ultimaAtivacao"
+          ? "asc"
+          : "desc"
+      );
+    }
+    if (page !== 1) setPage(1);
+  };
 
   return (
     <>
@@ -111,14 +145,60 @@ export default function ParceirosPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-[#f8fafc] text-left text-[11px] uppercase tracking-wide text-[#8b95a5]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Parceiro</th>
-                  <th className="px-5 py-3 font-semibold">Leads ativos</th>
-                  <th className="px-5 py-3 font-semibold">Clientes ativos</th>
-                  <th className="px-5 py-3 font-semibold">Conversão</th>
-                  <th className="px-5 py-3 font-semibold">Churn</th>
-                  <th className="px-5 py-3 font-semibold">Ativações 3m</th>
-                  <th className="px-5 py-3 font-semibold">Tempo méd. conv.</th>
-                  <th className="px-5 py-3 font-semibold">Faturamento</th>
+                  <SortableTh
+                    label="Parceiro"
+                    active={sortBy === "parceiro"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("parceiro")}
+                  />
+                  <SortableTh
+                    label="Leads ativos"
+                    active={sortBy === "leadsAtivos"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("leadsAtivos")}
+                  />
+                  <SortableTh
+                    label="Clientes ativos"
+                    active={sortBy === "clientesAtivos"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("clientesAtivos")}
+                  />
+                  <SortableTh
+                    label="Conversão"
+                    active={sortBy === "taxaConversao"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("taxaConversao")}
+                  />
+                  <SortableTh
+                    label="Última indicação"
+                    active={sortBy === "ultimaIndicacao"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("ultimaIndicacao")}
+                  />
+                  <SortableTh
+                    label="Última ativação"
+                    active={sortBy === "ultimaAtivacao"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("ultimaAtivacao")}
+                  />
+                  <SortableTh
+                    label="Ativações 3m"
+                    active={sortBy === "ativacoes3m"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("ativacoes3m")}
+                  />
+                  <SortableTh
+                    label="Tempo méd. conv."
+                    active={sortBy === "tempoMedioConversaoDias"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("tempoMedioConversaoDias")}
+                  />
+                  <SortableTh
+                    label="Faturamento"
+                    active={sortBy === "faturamento"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("faturamento")}
+                  />
                   <th className="px-5 py-3 font-semibold">Intranet</th>
                 </tr>
               </thead>
@@ -166,7 +246,12 @@ export default function ParceirosPage() {
                     <td className="px-5 py-3">
                       {formatPercent(p.taxaConversao)}
                     </td>
-                    <td className="px-5 py-3">{formatPercent(p.taxaChurn)}</td>
+                    <td className="px-5 py-3">
+                      {formatDate(p.ultimaIndicacao)}
+                    </td>
+                    <td className="px-5 py-3">
+                      {formatDate(p.ultimaAtivacao)}
+                    </td>
                     <td className="px-5 py-3">{formatNumber(p.ativacoes3m)}</td>
                     <td className="px-5 py-3">
                       {p.tempoMedioConversaoDias != null
@@ -192,7 +277,7 @@ export default function ParceirosPage() {
                 {!loading && items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-5 py-10 text-center text-[#94a3b8]"
                     >
                       Nenhum parceiro encontrado.
@@ -240,5 +325,38 @@ export default function ParceirosPage() {
         onClose={() => setExportOpen(false)}
       />
     </>
+  );
+}
+
+function SortableTh({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+}) {
+  return (
+    <th className="px-5 py-3 font-semibold">
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-brand"
+      >
+        {label}
+        {active ? (
+          dir === "asc" ? (
+            <ArrowUp className="h-3.5 w-3.5 text-brand" />
+          ) : (
+            <ArrowDown className="h-3.5 w-3.5 text-brand" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+        )}
+      </button>
+    </th>
   );
 }

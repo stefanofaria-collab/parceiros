@@ -28,6 +28,7 @@ import {
   PartnerClientRow,
   PartnerDetailData,
   PartnerExportRow,
+  PartnerSortKey,
   PartnerSummary,
   MapStateDetail,
 } from "./types";
@@ -425,6 +426,8 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
         taxaConversao: 0,
         taxaChurn: 0,
         tempoMedioConversaoDias: null,
+        ultimaIndicacao: null,
+        ultimaAtivacao: null,
         planos: {},
         conversionDays: [],
         tipoCobranca:
@@ -448,6 +451,15 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
       (row.tipo_cobranca_parceiro || row.tipo_cobranca)
     ) {
       p.tipoCobranca = row.tipo_cobranca_parceiro ?? row.tipo_cobranca;
+    }
+
+    const cadStr = dateStr(row.cadastrado_em);
+    if (cadStr && (!p.ultimaIndicacao || cadStr > p.ultimaIndicacao)) {
+      p.ultimaIndicacao = cadStr;
+    }
+    const ativStr = dateStr(row.ativou_em);
+    if (ativStr && (!p.ultimaAtivacao || ativStr > p.ultimaAtivacao)) {
+      p.ultimaAtivacao = ativStr;
     }
 
     if (isLead(row)) {
@@ -515,6 +527,8 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
       taxaConversao,
       taxaChurn,
       tempoMedioConversaoDias,
+      ultimaIndicacao: p.ultimaIndicacao,
+      ultimaAtivacao: p.ultimaAtivacao,
       planos: p.planos,
       tipoCobranca: p.tipoCobranca,
       estado: p.estado,
@@ -524,6 +538,38 @@ function buildPartnerSummaries(rows: ClienteParceiro[]): PartnerSummary[] {
       quantidadeIndicacoes: p.quantidadeIndicacoes,
       quantidadeAtivacoes: p.quantidadeAtivacoes,
     };
+  });
+}
+
+function sortPartnerSummaries(
+  items: PartnerSummary[],
+  sortBy: PartnerSortKey = "faturamento",
+  sortDir: "asc" | "desc" = "desc"
+): PartnerSummary[] {
+  const dir = sortDir === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => {
+    if (sortBy === "parceiro") {
+      return a.parceiro.localeCompare(b.parceiro, "pt-BR") * dir;
+    }
+    if (sortBy === "ultimaIndicacao" || sortBy === "ultimaAtivacao") {
+      const as = a[sortBy] || "";
+      const bs = b[sortBy] || "";
+      if (!as && !bs) return 0;
+      if (!as) return 1;
+      if (!bs) return -1;
+      return as.localeCompare(bs) * dir;
+    }
+    if (sortBy === "tempoMedioConversaoDias") {
+      const av = a.tempoMedioConversaoDias;
+      const bv = b.tempoMedioConversaoDias;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * dir;
+    }
+    const av = Number(a[sortBy] ?? 0);
+    const bv = Number(b[sortBy] ?? 0);
+    return (av - bv) * dir;
   });
 }
 
@@ -713,21 +759,22 @@ export async function getPartnersTable(filters: FilterParams): Promise<{
 }> {
   const page = filters.page || 1;
   const pageSize = filters.pageSize || 50;
+  const sortBy = filters.sortBy || "faturamento";
+  const sortDir = filters.sortDir || "desc";
   const key = `partners:${filtersCacheKey(filters)}`;
   let all = cacheGet<PartnerSummary[]>(key);
 
   if (!all) {
     const rows = await fetchClientes(filters);
-    all = buildPartnerSummaries(rows).sort(
-      (a, b) => b.faturamento - a.faturamento
-    );
+    all = buildPartnerSummaries(rows);
     cacheSet(key, all, resultTtl());
   }
 
+  const sorted = sortPartnerSummaries(all, sortBy, sortDir);
   const start = (page - 1) * pageSize;
   return {
-    items: all.slice(start, start + pageSize),
-    total: all.length,
+    items: sorted.slice(start, start + pageSize),
+    total: sorted.length,
     page,
     pageSize,
   };
@@ -782,16 +829,31 @@ export async function getPartnerClients(
     }))
     .sort((a, b) => b.quantidade - a.quantidade);
 
+  const threeMonthsAgo = new Date(today);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  let faturamentoTotal = 0;
+  let faturamento3m = 0;
+  let faturamentoMesAtual = 0;
+
   const clientes: PartnerClientRow[] = rows
     .filter((r) => !isLead(r))
-    .map((r) => ({
-      empresaId: r.empresa_id,
-      plano: r.nome_plano,
-      duracao: r.duracao,
-      valor: num(r.valor),
-      vencimento: dateStr(r.data_vencimento),
-      intranet: intranetUrl(r.empresa_id),
-    }))
+    .map((r) => {
+      const valor = num(r.valor);
+      faturamentoTotal += valor;
+      const ativou = toDate(r.ativou_em);
+      if (ativou && ativou >= threeMonthsAgo) faturamento3m += valor;
+      if (ativou && ativou >= monthStart) faturamentoMesAtual += valor;
+      return {
+        empresaId: r.empresa_id,
+        plano: r.nome_plano,
+        duracao: r.duracao,
+        valor,
+        vencimento: dateStr(r.data_vencimento),
+        intranet: intranetUrl(r.empresa_id),
+      };
+    })
     .sort((a, b) => b.valor - a.valor);
 
   return {
@@ -799,6 +861,9 @@ export async function getPartnerClients(
     empresaIndicacaoId: partnerId,
     ultimaIndicacao,
     ultimaAtivacao,
+    faturamentoTotal,
+    faturamento3m,
+    faturamentoMesAtual,
     clientesAtivosPorPlano,
     clientes,
   };
