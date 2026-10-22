@@ -1,4 +1,4 @@
-import { FilterParams, PartnerSortKey } from "./types";
+import { FilterParams, PartnerSortKey, ProdutoFiltro } from "./types";
 
 const PARTNER_SORT_KEYS: PartnerSortKey[] = [
   "parceiro",
@@ -26,10 +26,17 @@ export function parseFilters(
   const leads = get("leadsAtivos");
   const clientes = get("clientesAtivos");
   const responsavel = get("responsavelPagamento");
+  const produtoRaw = get("produto");
   const sortByRaw = get("sortBy");
   const sortDirRaw = get("sortDir");
 
   return {
+    produto:
+      produtoRaw === "GestãoClick" ||
+      produtoRaw === "ClickNotas" ||
+      produtoRaw === "Todos"
+        ? (produtoRaw as ProdutoFiltro)
+        : "Todos",
     parceiro: get("parceiro"),
     empresaIndicacaoId: get("empresaIndicacaoId"),
     nomePlano: get("nomePlano"),

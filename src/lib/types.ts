@@ -9,7 +9,10 @@ export type PartnerSortKey =
   | "tempoMedioConversaoDias"
   | "faturamento";
 
+export type ProdutoFiltro = "Todos" | "GestãoClick" | "ClickNotas";
+
 export type FilterParams = {
+  produto?: ProdutoFiltro;
   parceiro?: string;
   empresaIndicacaoId?: string;
   nomePlano?: string;
@@ -49,6 +52,7 @@ export type ClienteParceiro = {
   valor: number;
   empresa_indicacao_id: number;
   parceiro: string;
+  modalidade?: string | null;
   tipo_cobranca?: string | null;
   tipo_cobranca_parceiro?: string | null;
   estado?: string | null;

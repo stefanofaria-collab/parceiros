@@ -15,6 +15,7 @@ import { filtersToQuery } from "@/lib/filters";
 import { currentMonth } from "@/lib/format";
 
 const defaults: FilterParams = {
+  produto: "Todos",
   parceiro: "",
   empresaIndicacaoId: "",
   nomePlano: "",

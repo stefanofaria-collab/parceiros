@@ -12,6 +12,7 @@ type FiltersProps = {
 };
 
 const empty: FilterParams = {
+  produto: "Todos",
   parceiro: "",
   empresaIndicacaoId: "",
   nomePlano: "",
@@ -78,6 +79,7 @@ export function Filters({ value, onChange, onApply, showMonth }: FiltersProps) {
 
   const activeCount = useMemo(() => {
     let n = 0;
+    if (value.produto && value.produto !== "Todos") n++;
     if (value.parceiro) n++;
     if (value.empresaIndicacaoId) n++;
     if (value.nomePlano) n++;
@@ -131,6 +133,23 @@ export function Filters({ value, onChange, onApply, showMonth }: FiltersProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <label className="label">Produto</label>
+          <select
+            className="input"
+            value={value.produto || "Todos"}
+            onChange={(e) =>
+              set({
+                produto: e.target.value as FilterParams["produto"],
+              })
+            }
+          >
+            <option value="Todos">Todos</option>
+            <option value="GestãoClick">GestãoClick</option>
+            <option value="ClickNotas">ClickNotas</option>
+          </select>
+        </div>
+
         <div ref={boxRef} className="relative">
           <label className="label">Nome do parceiro</label>
           <input

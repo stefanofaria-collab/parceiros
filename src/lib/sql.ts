@@ -46,6 +46,7 @@ with parceiros as (
 clientes_parceiros as (
   select
     ep.empresa_id,
+    e.modalidade,
     e.tipo_cobranca,
     p.tipo_cobranca as tipo_cobranca_parceiro,
     e.cadastrado_em,

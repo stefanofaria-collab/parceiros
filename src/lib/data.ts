@@ -34,7 +34,16 @@ import {
 } from "./types";
 
 const CHURN_DAYS = 60;
-const BASE_KEY = "base:clientes_parceiros_v2";
+const BASE_KEY = "base:clientes_parceiros_v3";
+
+/** ERP → GestãoClick; demais modalidades → ClickNotas. */
+export function produtoFromModalidade(
+  modalidade: string | null | undefined
+): "GestãoClick" | "ClickNotas" {
+  return String(modalidade || "").trim().toUpperCase() === "ERP"
+    ? "GestãoClick"
+    : "ClickNotas";
+}
 /** Resultados agregados ficam em memória até o fim do dia. */
 const resultTtl = () => ttlUntilEndOfDayMs();
 
@@ -76,6 +85,7 @@ function normalizeRow(r: ClienteParceiro): ClienteParceiro {
     empresa_id: num(r.empresa_id),
     empresa_indicacao_id: num(r.empresa_indicacao_id),
     valor: num(r.valor),
+    modalidade: r.modalidade ?? null,
     tipo_cobranca: r.tipo_cobranca ?? null,
     tipo_cobranca_parceiro: r.tipo_cobranca_parceiro ?? null,
     estado: r.estado ?? null,
@@ -138,6 +148,10 @@ function matchesFilters(
   filters: FilterParams,
   today = new Date()
 ): boolean {
+  if (filters.produto && filters.produto !== "Todos") {
+    if (produtoFromModalidade(row.modalidade) !== filters.produto) return false;
+  }
+
   if (filters.parceiro) {
     const q = filters.parceiro.toLowerCase();
     if (!String(row.parceiro || "").toLowerCase().includes(q)) return false;
