@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { invalidateDataCache, loadBaseRows } from "@/lib/data";
+import { isBigQuerySource } from "@/lib/bigquery";
 
 export const dynamic = "force-dynamic";
 
-/** Força recarga do MySQL e grava o cache do dia. Use só no botão Atualizar. */
+/** Recarrega o cache da fonte configurada; não executa sincronização no Windows. */
 export async function POST() {
   try {
     invalidateDataCache();
     const rows = await loadBaseRows(true);
     return NextResponse.json({
+      source: isBigQuerySource() ? "bigquery" : "mysql",
       ok: true,
       rows: rows.length,
       refreshedAt: new Date().toISOString(),
