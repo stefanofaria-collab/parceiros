@@ -596,25 +596,7 @@ export async function getDashboardData(
 
   const dbOk = await checkConnection();
   if (!dbOk) {
-    return {
-      totalParceiros: 0,
-      totalLeads: 0,
-      leadsAtivos: 0,
-      totalClientes: 0,
-      clientesAtivos: 0,
-      faturamentoAtivo: 0,
-      taxaConversao: 0,
-      taxaChurn: 0,
-      ativacoes3m: 0,
-      tempoMedioConversaoDias: null,
-      planosVendidos: [],
-      planosPorDuracao: [],
-      topParceiros: [],
-      evolucaoIndicacoes: [],
-      evolucaoAtivacoes: [],
-      evolucaoLeads: [],
-      dbOk: false,
-    };
+    throw new Error("Conexão MySQL indisponível");
   }
 
   const rows = await fetchClientes(filters);
