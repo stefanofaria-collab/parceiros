@@ -20,7 +20,7 @@ def main() -> int:
     if missing:
         print("CONFIGURACAO: campos ausentes: " + ", ".join(missing))
         return 2
-    password = os.getenv("DB_PASSWORD") or getpass("Senha MySQL (nao sera exibida): ")
+    password = getpass("Senha MySQL (nao sera exibida): ")
     if not password:
         print("CONFIGURACAO: senha nao informada")
         return 2
