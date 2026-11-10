@@ -75,6 +75,8 @@ export default function ParceirosPage() {
         setItems(json.items || []);
         setTotal(json.total || 0);
       } catch (e) {
+        setItems([]);
+        setTotal(0);
         setError(e instanceof Error ? e.message : "Erro desconhecido");
       } finally {
         setLoading(false);
@@ -128,8 +130,7 @@ export default function ParceirosPage() {
                 Parceiros no recorte
               </h3>
               <p className="text-sm text-[#6b7280]">
-                {formatNumber(total)} parceiros encontrados · página {page} de{" "}
-                {totalPages}
+                {error ? "Dados indisponíveis" : `${formatNumber(total)} parceiros encontrados · página ${page} de ${totalPages}`}
               </p>
             </div>
             <button
@@ -274,7 +275,7 @@ export default function ParceirosPage() {
                     </td>
                   </tr>
                 ))}
-                {!loading && items.length === 0 && (
+                {!loading && !error && items.length === 0 && (
                   <tr>
                     <td
                       colSpan={10}
