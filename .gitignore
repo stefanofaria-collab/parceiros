@@ -49,3 +49,5 @@ credentials/
 sync/*.log
 __pycache__/
 .venv/
+
+sync/logs/
