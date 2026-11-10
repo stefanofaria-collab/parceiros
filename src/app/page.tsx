@@ -88,6 +88,32 @@ export default function HomePage() {
       label: formatMonthLabel(e.mes),
     })) || [];
 
+  // Não exibe indicadores zerados quando o backend não conseguiu consultar o banco.
+  if ((loading && !data) || error || data?.dbOk === false) {
+    return (
+      <>
+        <TopBar
+          eyebrow="Comercial / Inteligência de parceiros"
+          title="Visão geral"
+          onRefresh={() => load(true)}
+          loading={loading}
+        />
+        <main className="flex-1 space-y-5 overflow-y-auto p-6">
+          <Filters value={filters} onChange={setFilters} onApply={apply} />
+          <div
+            role={error || data?.dbOk === false ? "alert" : "status"}
+            className="rounded-xl border border-[#dbe4ea] bg-white px-5 py-5 text-sm text-[#334155]"
+          >
+            {loading && !data
+              ? "Carregando indicadores..."
+              : "Não foi possível consultar os dados. Os indicadores estão indisponíveis; números zerados não representam o resultado real."}
+            {error && <p className="mt-2 text-red-700">{error}</p>}
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <TopBar
