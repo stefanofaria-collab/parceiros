@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+from getpass import getpass
 from pathlib import Path
 
 import mysql.connector
@@ -12,14 +13,16 @@ CONFIG = Path(__file__).resolve().parent / ".env.sync"
 
 
 def main() -> int:
-    if not CONFIG.is_file():
-        print("CONFIGURACAO: sync/.env.sync nao encontrado")
-        return 2
-    load_dotenv(CONFIG)
-    required = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"]
+    if CONFIG.is_file():
+        load_dotenv(CONFIG)
+    required = ["DB_HOST", "DB_NAME", "DB_USER"]
     missing = [key for key in required if not os.getenv(key)]
     if missing:
         print("CONFIGURACAO: campos ausentes: " + ", ".join(missing))
+        return 2
+    password = os.getenv("DB_PASSWORD") or getpass("Senha MySQL (nao sera exibida): ")
+    if not password:
+        print("CONFIGURACAO: senha nao informada")
         return 2
     conn = None
     try:
@@ -28,7 +31,7 @@ def main() -> int:
             port=int(os.getenv("DB_PORT", "3306")),
             database=os.environ["DB_NAME"],
             user=os.environ["DB_USER"],
-            password=os.environ["DB_PASSWORD"],
+            password=password,
             connection_timeout=15,
         )
         cursor = conn.cursor(dictionary=True)
