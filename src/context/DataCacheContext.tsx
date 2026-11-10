@@ -69,7 +69,7 @@ type DataCacheContextValue = {
 
 const DataCacheContext = createContext<DataCacheContextValue | null>(null);
 
-const SESSION_KEY = "parceiros_client_cache_v1";
+const SESSION_KEY = "parceiros_client_cache_v2";
 
 function todayStamp(): string {
   const d = new Date();
@@ -183,9 +183,12 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
         }
       }
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data.error || "Erro ao carregar dados");
+        throw new Error(data?.error || `Falha ao consultar API (HTTP ${res.status})`);
+      }
+      if (!data || (typeof data === "object" && data.dbOk === false)) {
+        throw new Error("Os dados não estão disponíveis: verifique a conexão com o MySQL.");
       }
       cacheRef.current.set(cacheKey, {
         data,
