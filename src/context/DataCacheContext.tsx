@@ -69,7 +69,8 @@ type DataCacheContextValue = {
 
 const DataCacheContext = createContext<DataCacheContextValue | null>(null);
 
-const SESSION_KEY = "parceiros_client_cache_v2";
+const SESSION_KEY = "parceiros_client_cache_v3";
+const CLIENT_CACHE_TTL_MS = 15 * 60 * 1000;
 
 function todayStamp(): string {
   const d = new Date();
@@ -87,7 +88,7 @@ function loadSessionCache(): Map<string, CacheEntry> {
     const day = todayStamp();
     const map = new Map<string, CacheEntry>();
     Object.entries(parsed).forEach(([k, v]) => {
-      if (v && v.day === day) map.set(k, v);
+      if (v && v.day === day && Date.now() - v.ts < CLIENT_CACHE_TTL_MS) map.set(k, v);
     });
     return map;
   } catch {
@@ -163,7 +164,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
   const getCached = useCallback(<T,>(cacheKey: string): T | null => {
     const hit = cacheRef.current.get(cacheKey);
     if (!hit) return null;
-    if (hit.day !== todayStamp()) {
+    if (hit.day !== todayStamp() || Date.now() - hit.ts >= CLIENT_CACHE_TTL_MS) {
       cacheRef.current.delete(cacheKey);
       return null;
     }
@@ -178,7 +179,7 @@ export function DataCacheProvider({ children }: { children: ReactNode }) {
     ): Promise<T> => {
       if (!options?.force) {
         const hit = cacheRef.current.get(cacheKey);
-        if (hit && hit.day === todayStamp()) {
+        if (hit && hit.day === todayStamp() && Date.now() - hit.ts < CLIENT_CACHE_TTL_MS) {
           return hit.data as T;
         }
       }

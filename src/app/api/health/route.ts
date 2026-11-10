@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { BASE_CTE } from "@/lib/sql";
+import { bigQuerySnapshotHealth, isBigQuerySource } from "@/lib/bigquery";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,18 @@ function safeCode(error: unknown): string {
 }
 
 export async function GET() {
+  if (isBigQuerySource()) {
+    try {
+      const result = await bigQuerySnapshotHealth();
+      return NextResponse.json(result, { headers });
+    } catch (error) {
+      console.error("[health] Falha BigQuery:", error);
+      return NextResponse.json(
+        { ok: false, source: "bigquery", stage: "query", code: "BQ_QUERY_FAILED" },
+        { status: 503, headers }
+      );
+    }
+  }
   const missing = requiredVariables.filter((name) => !process.env[name]);
   if (missing.length > 0) {
     return NextResponse.json(

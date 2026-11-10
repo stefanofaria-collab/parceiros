@@ -38,3 +38,16 @@ next-env.d.ts
 
 # cache diário dos dados do MySQL
 .cache/
+
+# Segredos locais e arquivos temporários de sincronização
+.env.sync
+.env.sync.*
+!*.example
+credentials/
+*.service-account.json
+*.credentials.json
+sync/*.log
+__pycache__/
+.venv/
+
+sync/logs/

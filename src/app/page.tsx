@@ -74,6 +74,8 @@ export default function HomePage() {
   useEffect(() => {
     if (!warm) return;
     load();
+    const timer = setInterval(() => load(), 15 * 60 * 1000);
+    return () => clearInterval(timer);
   }, [load, warm]);
 
   const evolucaoIndicacoes =
