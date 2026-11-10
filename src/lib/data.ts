@@ -1,4 +1,5 @@
 import { checkConnection, query } from "./db";
+import { isBigQuerySource, loadBigQueryRows } from "./bigquery";
 import {
   cacheGet,
   cacheSet,
@@ -34,7 +35,9 @@ import {
 } from "./types";
 
 const CHURN_DAYS = 60;
-const BASE_KEY = "base:clientes_parceiros_v3";
+const BASE_KEY = isBigQuerySource()
+  ? "base:bigquery:clientes_parceiros_v1"
+  : "base:mysql:clientes_parceiros_v3";
 
 /** ERP → GestãoClick; demais modalidades → ClickNotas. */
 export function produtoFromModalidade(
@@ -108,7 +111,9 @@ export async function loadBaseRows(force = false): Promise<ClienteParceiro[]> {
   }
 
   const sql = `${BASE_CTE} select * from clientes_parceiros`;
-  const rows = await query<ClienteParceiro>(sql);
+  const rows = isBigQuerySource()
+    ? await loadBigQueryRows()
+    : await query<ClienteParceiro>(sql);
   const normalized = rows.map(normalizeRow);
   cacheSet(BASE_KEY, normalized);
   diskSet(BASE_KEY, normalized);
@@ -594,7 +599,7 @@ export async function getDashboardData(
   const cached = cacheGet<DashboardData>(key);
   if (cached) return { ...cached, cached: true };
 
-  const dbOk = await checkConnection();
+  const dbOk = isBigQuerySource() || await checkConnection();
   if (!dbOk) {
     throw new Error("Conexão MySQL indisponível");
   }
